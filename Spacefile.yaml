@@ -1,0 +1,18 @@
+_env:
+    - image:
+        value: "${image:-node:10}"
+    - name:
+        value: "${name:-${CWDNAME}}"
+run:
+    _env:
+        - RUN: RUN "${image}" "${name}"
+exec:
+    _env:
+        - cmd: "${cmd:-bash}"
+        - RUN: EXEC "${image}" "${name}" -- ${cmd}
+rm:
+    _env:
+        - RUN: docker rm -f "${name}"
+get_ip:
+    _env:
+        - RUN: GET_IP ${name}
