@@ -1,6 +1,7 @@
-# Develop with node using a container
+# Develop with node without needing to install it
 If you do not want to install `nodejs/npm` in your OS, you can instead run those programs within a Docker container to get some isolation.  
-Motivation: see [NPM backdoors](duckduckgo.com/?q=npm+backdoors).
+
+Motivation: see [NPM backdoors](https://duckduckgo.com/?q=npm+backdoors).
 
 This module runs by default the container image `node:10`, but that can be customized using the `-e image=` parameter.
 
