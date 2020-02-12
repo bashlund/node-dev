@@ -1,18 +1,29 @@
+@clone: docker
+
 _env:
     - image:
         value: "${image:-node:10}"
     - name:
         value: "${name:-${CWDNAME}}"
+    - shell:
+        value: "${shell:-bash}"
 run:
     _env:
         - RUN: RUN "${image}" "${name}"
 exec:
     _env:
         - cmd: "${cmd:-bash}"
-        - RUN: EXEC "${image}" "${name}" -- ${cmd}
+        - RUN: EXEC "${name}" -- ${cmd}
+    root:
+        _env:
+            - cmd: "${cmd:-bash}"
+            - RUN: EXEC_ROOT "${name}" -- ${cmd}
 rm:
     _env:
         - RUN: docker rm -f "${name}"
 get_ip:
     _env:
-        - RUN: GET_IP ${name}
+        - RUN: GET_IP "${name}"
+shortcut:
+    _env:
+        - RUN: SHORTCUT "${image}" "${name}" "${shell}" --
