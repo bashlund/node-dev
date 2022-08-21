@@ -2,7 +2,7 @@
 
 _env:
     - image:
-        value: "${image:-node:10}"
+        value: "${image:-node:14}"
     - name:
         value: "${name:-${CWDNAME}}"
     - shell:
@@ -10,6 +10,9 @@ _env:
 run:
     _env:
         - RUN: RUN "${image}" "${name}"
+npm:
+    _env:
+        - RUN: NPM "${image}" -- "${@}"
 exec:
     _env:
         - cmd: "${cmd:-bash}"

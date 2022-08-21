@@ -10,7 +10,8 @@ GET_IP()
 
 RUN()
 {
-    SPACE_SIGNATURE="image name"
+    SPACE_SIGNATURE="image name [dir]"
+    SPACE_DEP="DOCKER_EXIST"
 
     local image="${1}"
     shift
@@ -18,12 +19,86 @@ RUN()
     local name="${1}"
     shift
 
-    docker run -d -w /home/node/project --restart=always -v ${PWD}:/home/node/project --name "${name}" "${image}" tail -f /dev/null
+    local dir="${1:-${PWD}}"
+    shift
+
+    DOCKER_EXIST "${name}"
+    local is_running="$?"
+
+    if [ "${is_running}" -eq 0 ]; then
+        return
+    fi
+
+    docker run -d -w /home/node/project --restart=always -v ${dir}:/home/node/project --name "${name}" "${image}" tail -f /dev/null
+}
+
+NPM()
+{
+    SPACE_SIGNATURE="image dir [cmds]"
+    SPACE_DEP="RUN VIM_FORMAT"
+
+    local image="${1}"
+    shift
+
+    local dir="${1}"
+    shift
+
+    # Find out the container name
+    local name=
+    local olddir=
+    while [ -n "${dir}" ] && [ "${olddir}" != "${dir}" ]; do
+        if [ -f "${dir}/package.json" ]; then
+            name="${dir##*/}"
+            break;
+        fi
+        olddir="${dir}"
+        dir="${dir%/*}"
+    done
+
+    if [ -z "${name}" ]; then
+        printf "%s\\n" "Could not detect package.json" >&2
+        return 1
+    fi
+
+    RUN "${image}" "${name}" "${dir}" >/dev/null
+
+    local id=$(id -u)
+    eval docker exec -u $id -i "${name}" "$@" 2>/dev/null | VIM_FORMAT
+}
+
+VIM_FORMAT()
+{
+    SPACE_DEP="VIM_FORMAT_LINE"
+
+    local IFS=""
+    local line=
+    while read line; do
+        VIM_FORMAT_LINE "${line}"
+    done
+}
+
+VIM_FORMAT_LINE()
+{
+    if [ "${1#[ ]}" != "${1}" ]; then
+        return
+    fi
+
+    local filename="${1%%(*}"
+    if [ "${filename}" == "${1}" ]; then
+        return
+    fi
+    local row="${1#*(}"
+    row="${row%%,*}"
+    local col="${1%%)*}"
+    col="${col##*,}"
+    local error="${1#*)}"
+
+    printf "%s:%s:%s:%s\\n" "${filename}" "${row}" "${col}" "${error}"
 }
 
 EXEC()
 {
-    SPACE_SIGNATURE="name [cmd]"
+    SPACE_SIGNATURE="name [cmds]"
 
     local name="${1}"
     shift
@@ -64,10 +139,8 @@ SHORTCUT()
     DOCKER_EXIST "${name}"
     local is_running="$?"
 
-    echo $is_running
     if [ "${cmd}" = "enter" ]; then
         [ "${is_running}" -gt 0 ] && {
-            echo is not running
             RUN "${image}" "${name}" || { PRINT "Could not run container." "error"; return 1; }
         }
         EXEC "${name}" "${shell}"
