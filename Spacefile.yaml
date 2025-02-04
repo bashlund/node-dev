@@ -2,7 +2,7 @@
 
 _env:
     - image:
-        value: "${image:-node:14}"
+        value: "${image:-node:20-bookworm-slim}"
     - name:
         value: "${name:-${CWDNAME}}"
     - shell:
@@ -13,6 +13,9 @@ run:
 npm:
     _env:
         - RUN: NPM "${image}" -- "${@}"
+refactor:
+    _env:
+        - RUN: REFACTOR "${image}" -- "${@}"
 exec:
     _env:
         - cmd: "${cmd:-bash}"

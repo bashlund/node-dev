@@ -20,7 +20,7 @@ RUN()
     shift
 
     local dir="${1:-${PWD}}"
-    shift
+    shift $(($# > 0 ? 1: 0))
 
     DOCKER_EXIST "${name}"
     local is_running="$?"
@@ -29,7 +29,7 @@ RUN()
         return
     fi
 
-    docker run -d -w /home/node/project --restart=always -v ${dir}:/home/node/project --name "${name}" "${image}" tail -f /dev/null
+    docker run -d -w /home/node/project --restart=always --sysctl net.ipv6.conf.all.disable_ipv6=1 -v ${dir}:/home/node/project --name "${name}" "${image}" tail -f /dev/null
 }
 
 NPM()
@@ -63,37 +63,129 @@ NPM()
     RUN "${image}" "${name}" "${dir}" >/dev/null
 
     local id=$(id -u)
-    eval docker exec -u $id -i "${name}" "$@" 2>/dev/null | VIM_FORMAT
+    eval docker exec -u $id -i "${name}" "$@" 2>/dev/null | VIM_FORMAT "${dir}"
 }
 
-VIM_FORMAT()
+REFACTOR()
 {
-    SPACE_DEP="VIM_FORMAT_LINE"
+    SPACE_SIGNATURE="image dir [cmds]"
+    SPACE_DEP="RUN VIM_FORMAT2"
+
+    local image="${1}"
+    shift
+
+    local dir="${1}"
+    shift
+
+    # Find out the container name
+    local name=
+    local olddir=
+    while [ -n "${dir}" ] && [ "${olddir}" != "${dir}" ]; do
+        if [ -f "${dir}/package.json" ]; then
+            name="${dir##*/}"
+            break;
+        fi
+        olddir="${dir}"
+        dir="${dir%/*}"
+    done
+
+    if [ -z "${name}" ]; then
+        printf "%s\\n" "Could not detect package.json" >&2
+        return 1
+    fi
+
+    RUN "${image}" "${name}" "${dir}" >/dev/null
+
+    local id=$(id -u)
+    eval docker exec -u $id -i "${name}" "$@" 2>/dev/null | VIM_FORMAT2 "${dir}"
+}
+
+VIM_FORMAT2()
+{
+    SPACE_SIGNATURE="basedir"
+    SPACE_DEP="VIM_FORMAT_LINE2"
+
+    local baseDir="${1}"
+    shift
 
     local IFS=""
     local line=
     while read line; do
-        VIM_FORMAT_LINE "${line}"
+        VIM_FORMAT_LINE2 "${baseDir}" "${line}"
+    done
+}
+
+VIM_FORMAT_LINE2()
+{
+    SPACE_SIGNATURE="basedir line"
+
+    local baseDir="${1}"
+    shift
+
+    local line="${1}"
+    shift
+
+    if [ "${line#[ ]}" != "${line}" ]; then
+        return
+    fi
+
+    #if [ "${line#*TS2724:}" = "${line}" ]; then
+        #return
+    #fi
+
+    local filename="${line%%(*}"
+    if [ "${filename}" = "${line}" ]; then
+        return
+    fi
+    local row="${line#*(}"
+    row="${row%%,*}"
+    local col="${line%%)*}"
+    col="${col##*,}"
+    local error="${line#*)}"
+
+    printf "%s/%s %s %s\\n" "${baseDir}" "${filename}" "${row}" "${error}"
+}
+
+VIM_FORMAT()
+{
+    SPACE_SIGNATURE="basedir"
+    SPACE_DEP="VIM_FORMAT_LINE"
+
+    local baseDir="${1}"
+    shift
+
+    local IFS=""
+    local line=
+    while read line; do
+        VIM_FORMAT_LINE "${baseDir}" "${line}"
     done
 }
 
 VIM_FORMAT_LINE()
 {
-    if [ "${1#[ ]}" != "${1}" ]; then
+    SPACE_SIGNATURE="basedir line"
+
+    local baseDir="${1}"
+    shift
+
+    local line="${1}"
+    shift
+
+    if [ "${line#[ ]}" != "${line}" ]; then
         return
     fi
 
-    local filename="${1%%(*}"
-    if [ "${filename}" == "${1}" ]; then
+    local filename="${line%%(*}"
+    if [ "${filename}" = "${line}" ]; then
         return
     fi
-    local row="${1#*(}"
+    local row="${line#*(}"
     row="${row%%,*}"
-    local col="${1%%)*}"
+    local col="${line%%)*}"
     col="${col##*,}"
-    local error="${1#*)}"
+    local error="${line#*)}"
 
-    printf "%s:%s:%s:%s\\n" "${filename}" "${row}" "${col}" "${error}"
+    printf "%s/%s:%s:%s:%s\\n" "${baseDir}" "${filename}" "${row}" "${col}" "${error}"
 }
 
 EXEC()
